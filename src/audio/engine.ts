@@ -31,6 +31,8 @@ class AudioEngine {
   private wave = new Uint8Array(0)
   private bands = new Float32Array(SPECTRUM_BANDS)
   private detector = new BeatDetector()
+  /** Цель импульса доли: 1 на ударе, дальше плавно спадает. */
+  private pulseTarget = 0
   source: Source | null = null
 
   private ensure(): AudioContext {
@@ -175,12 +177,15 @@ class AudioEngine {
       levels.spectrum[i] = follow(levels.spectrum[i], this.bands[i], 0.7 * k, 0.15 * k)
     }
     levels.beat = this.detector.update(bandLevel(this.freq, rate, [30, 110]), nowMs)
+    // Импульс не прыгает в 1 мгновенно, а нарастает за пару кадров и плавно
+    // затухает: мгновенный скачок на каждой доле выглядел как дёрганье сцены.
     if (levels.beat) {
-      levels.pulse = 1
+      this.pulseTarget = 1
       levels.beats++
     } else {
-      levels.pulse = Math.max(0, levels.pulse - dt * 3.2)
+      this.pulseTarget = Math.max(0, this.pulseTarget - dt * 2.5)
     }
+    levels.pulse = follow(levels.pulse, this.pulseTarget, 0.35 * k, 0.15 * k)
     levels.active = true
     return true
   }

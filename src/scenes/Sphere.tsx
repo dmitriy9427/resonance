@@ -11,9 +11,8 @@ import { SIMPLEX_3D } from './glsl'
 // Вокруг — два кольца-спектра: каждый луч — своя полоса частот.
 
 const vertex = /* glsl */ `
-uniform float uTime;
+uniform float uFlow;
 uniform float uBass;
-uniform float uMid;
 uniform float uTreble;
 uniform float uPulse;
 varying float vDisp;
@@ -21,12 +20,13 @@ varying vec3 vNormal;
 varying vec3 vView;
 ${SIMPLEX_3D}
 void main() {
-  // Крупные волны: скорость растёт от середины, высота — от баса.
-  float t = uTime * (0.25 + uMid * 0.6);
+  // Крупные волны: высота — от баса. uFlow — «пройденный путь» шума,
+  // накопленный в JS: середина ускоряет волны, но не перескакивает их.
+  float t = uFlow;
   float big = snoise(normal * 1.4 + vec3(t, t * 0.7, -t * 0.4));
   // Мелкая рябь — от верхних частот.
   float fine = snoise(normal * 5.5 + vec3(-t * 2.0, t, t * 1.5));
-  float disp = big * (0.1 + uBass * 0.55) + fine * uTreble * 0.12 + uPulse * 0.14;
+  float disp = big * (0.1 + uBass * 0.45) + fine * uTreble * 0.1 + uPulse * 0.05;
   vDisp = disp;
   vec3 pos = position + normal * disp;
   vec4 world = modelMatrix * vec4(pos, 1.0);
@@ -94,8 +94,8 @@ export function Sphere() {
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
+      uFlow: { value: 0 },
       uBass: { value: 0 },
-      uMid: { value: 0 },
       uTreble: { value: 0 },
       uPulse: { value: 0 },
       uColorA: { value: new THREE.Color('#1b0b3a') },
@@ -117,8 +117,8 @@ export function Sphere() {
   useFrame((state, dt) => {
     const u = uniforms
     u.uTime.value += dt
+    u.uFlow.value += dt * (0.25 + levels.mid * 0.6)
     u.uBass.value = levels.bass
-    u.uMid.value = levels.mid
     u.uTreble.value = levels.treble
     u.uPulse.value = levels.pulse
     const [a, b] = palettes[Math.floor(levels.beats / 16) % palettes.length]
@@ -126,16 +126,15 @@ export function Sphere() {
     u.uColorB.value.lerp(b, dt * 1.5)
     if (mesh.current) {
       mesh.current.rotation.y += dt * (0.1 + levels.mid * 0.4)
-      mesh.current.scale.setScalar(1 + levels.pulse * 0.06)
     }
     // На стартовом экране (широкий экран) сфера уступает место заголовку:
     // камера смещается влево в своей системе координат — сфера на экране
     // правее, где бы камера ни была на орбите. С музыкой — плавно в центр.
     const aside = !usePlayer.getState().source && state.size.width / state.size.height > 1.2
     shift.current += ((aside ? 1.9 : 0) - shift.current) * Math.min(1, dt * 2.5)
-    // Камера медленно облетает сферу и вздрагивает на долях.
+    // Камера медленно и ровно облетает сферу — без толчков на долях.
     const t = state.clock.elapsedTime * 0.12
-    state.camera.position.set(Math.sin(t) * 5.2, Math.sin(t * 0.7) * 1.2 + levels.pulse * 0.08, Math.cos(t) * 5.2)
+    state.camera.position.set(Math.sin(t) * 5.2, Math.sin(t * 0.7) * 1.2, Math.cos(t) * 5.2)
     state.camera.lookAt(0, 0, 0)
     state.camera.translateX(-shift.current)
   })

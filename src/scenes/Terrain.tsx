@@ -63,7 +63,7 @@ void main() {
   // Чем дальше, тем тусклее — туман к горизонту.
   float fade = smoothstep(1.0, 0.55, vDepth);
   vec3 fill = vec3(0.02, 0.0, 0.05) + color * 0.05 * vHeight;
-  gl_FragColor = vec4(mix(fill, color * (1.4 + uPulse * 1.2), line) * fade, 1.0);
+  gl_FragColor = vec4(mix(fill, color * (1.4 + uPulse * 0.5), line) * fade, 1.0);
 }
 `
 

@@ -16,9 +16,8 @@ const ARMS = 4
 const RADIUS = 6
 
 const vertex = /* glsl */ `
-uniform float uTime;
+uniform float uSpin;
 uniform float uPulse;
-uniform float uBass;
 uniform float uSpectrum[${SPECTRUM_BANDS}];
 uniform float uPixelRatio;
 attribute float aRadius;
@@ -30,7 +29,8 @@ varying float vLevel;
 void main() {
   float r = aRadius;
   // Внутренние звёзды вращаются быстрее внешних — как в настоящей галактике.
-  float angle = aArm + r * 0.9 + uTime * (0.6 / (0.6 + r)) * (1.0 + uBass);
+  // uSpin — накопленный в JS угол: музыка меняет скорость, а не положение.
+  float angle = aArm + r * 0.9 + uSpin * (0.6 / (0.6 + r));
   vec3 pos = vec3(cos(angle) * r, 0.0, sin(angle) * r) + aJitter * (0.15 + r * 0.08);
   int band = int(clamp(r / ${RADIUS.toFixed(1)}, 0.0, 0.999) * ${SPECTRUM_BANDS.toFixed(1)});
   float level = uSpectrum[band];
@@ -38,11 +38,11 @@ void main() {
   vRadius = r / ${RADIUS.toFixed(1)};
   // Громкая полоса выталкивает звёзды вверх и вниз от диска.
   pos.y += aJitter.y * level * 2.6;
-  // На долю галактика «вздыхает» — расширяется.
-  pos.xz *= 1.0 + uPulse * 0.07;
+  // На долю галактика чуть-чуть «вздыхает».
+  pos.xz *= 1.0 + uPulse * 0.015;
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
   gl_Position = projectionMatrix * mv;
-  gl_PointSize = aSize * (1.0 + level * 1.8 + uPulse * 0.8) * uPixelRatio * (13.0 / -mv.z);
+  gl_PointSize = aSize * (1.0 + level * 1.8 + uPulse * 0.3) * uPixelRatio * (13.0 / -mv.z);
 }
 `
 
@@ -97,9 +97,8 @@ export function Galaxy() {
   const geometry = useMemo(() => makeGalaxy(COUNT), [])
   const uniforms = useMemo(
     () => ({
-      uTime: { value: 0 },
+      uSpin: { value: 0 },
       uPulse: { value: 0 },
-      uBass: { value: 0 },
       uHue: { value: 0 },
       uPixelRatio: { value: 1 },
       uSpectrum: { value: new Float32Array(SPECTRUM_BANDS) },
@@ -109,13 +108,15 @@ export function Galaxy() {
 
   useFrame((state, dt) => {
     const u = uniforms
-    u.uTime.value += dt
+    // Скорость вращения растёт с басом. Важно копить угол (+= скорость × dt),
+    // а не умножать время на бас: время × бас «прыгает» на десятки радиан при
+    // любом изменении громкости — так раньше дёргалась вся сцена.
+    u.uSpin.value += dt * (1 + levels.bass * 1.2)
     u.uPulse.value = levels.pulse
-    u.uBass.value = levels.bass
     u.uPixelRatio.value = state.gl.getPixelRatio()
     u.uSpectrum.value.set(levels.spectrum)
     // Цвета медленно «плывут» и сдвигаются на каждой доле.
-    u.uHue.value += dt * 0.02 + (levels.beat ? 0.03 : 0)
+    u.uHue.value += dt * (0.02 + levels.pulse * 0.08)
     const t = state.clock.elapsedTime * 0.07
     state.camera.position.set(Math.sin(t) * 8, 3.6 + Math.sin(t * 1.3) * 1.5, Math.cos(t) * 8)
     state.camera.lookAt(0, 0, 0)

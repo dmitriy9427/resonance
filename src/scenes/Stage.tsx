@@ -35,7 +35,7 @@ function Effects({ reduced }: { reduced: boolean }) {
   // Начальный сдвиг; дальше эффект меняем напрямую в useFrame.
   const [initial] = useState(() => new THREE.Vector2())
   useFrame(() => {
-    const k = reduced ? 0 : levels.pulse * 0.0025 + levels.treble * 0.0005
+    const k = reduced ? 0 : levels.pulse * 0.0012 + levels.treble * 0.0003
     chroma.current?.offset.set(k, k * 0.6)
   })
   return (
